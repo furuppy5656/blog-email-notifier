@@ -1,0 +1,40 @@
+name: ブログ更新チェック
+
+on:
+  schedule:
+    # 15分ごとに実行（UTC時間）
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # 手動実行も可能にする
+
+jobs:
+  check-blog:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: コードをチェックアウト
+      uses: actions/checkout@v3
+    
+    - name: Pythonセットアップ
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: 依存パッケージインストール
+      run: |
+        pip install requests beautifulsoup4
+    
+    - name: ブログチェック実行
+      env:
+        EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        python check_blog.py
+    
+    - name: キャッシュファイル更新
+      if: always()
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add -A
+        git diff --quiet && git diff --staged --quiet || git commit -m "Update cache file"
+        git push || echo "No changes to push"
