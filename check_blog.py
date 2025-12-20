@@ -256,7 +256,7 @@ def send_email(new_articles):
     msg = MIMEMultipart('alternative')
     msg['From'] = EMAIL
     msg['To'] = EMAIL
-    msg['Subject'] = f"【ブログ更新通知】新着記事 {len(new_articles)}件"
+    msg['Subject'] = f"【橘玲ブログ】新着記事 {len(new_articles)}件"
     
     # テキストパートとHTMLパートを追加
     part1 = MIMEText(text_body, 'plain', 'utf-8')
