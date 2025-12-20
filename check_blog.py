@@ -29,6 +29,18 @@ def should_exclude(text):
             return True
     return False
 
+def clean_content(content):
+    """コンテンツから定型文を削除して整形"""
+    if not content:
+        return ""
+    # 除外テキストを削除
+    for exclude in EXCLUDE_TEXTS:
+        content = content.replace(exclude, "")
+    # 連続する空白や改行を整理
+    content = re.sub(r'\n\s*\n', '\n', content)
+    content = re.sub(r'\s+', ' ', content).strip()
+    return content
+
 def get_blog_articles():
     """ブログから最新記事を取得"""
     try:
@@ -62,16 +74,7 @@ def get_blog_articles():
                 content = ""
                 content_elem = element.find(['div', 'p'], class_=['content', 'entry-content', 'post-content'])
                 if content_elem:
-                    # テキストを取得して整形
-                    content = content_elem.get_text().strip()
-                    # 除外テキストを削除
-                    for exclude in EXCLUDE_TEXTS:
-                        content = content.replace(exclude, "")
-                    # 連続する空白や改行を整理
-                    content = re.sub(r'\n\s*\n', '\n', content)
-                    content = re.sub(r'\s+', ' ', content).strip()
-                    # 最初の200文字まで
-                    content = content[:200] + "..." if len(content) > 200 else content
+                    content = clean_content(content_elem.get_text())
                 
                 # リンクを探す
                 link = ""
@@ -125,7 +128,7 @@ def save_cache(articles):
         json.dump(articles, f, ensure_ascii=False, indent=2)
 
 def send_email(new_articles):
-    """新着記事をメール送信（HTML形式）"""
+    """新着記事をメール送信（HTML形式・目次付き）"""
     if not new_articles:
         return
     
@@ -134,60 +137,120 @@ def send_email(new_articles):
     <html>
       <head>
         <style>
-          body { font-family: 'メイリオ', 'Hiragino Sans', sans-serif; line-height: 1.6; }
-          h2 { color: #333; border-bottom: 2px solid #4CAF50; padding-bottom: 5px; }
-          .article { margin-bottom: 30px; padding: 15px; background-color: #f9f9f9; border-radius: 5px; }
-          .title { font-weight: bold; font-size: 18px; color: #2c3e50; margin-bottom: 5px; }
-          .date { color: #7f8c8d; font-size: 14px; margin-bottom: 10px; }
-          .content { color: #34495e; margin-top: 10px; }
-          .link { margin-top: 10px; }
-          a { color: #3498db; text-decoration: none; }
-          a:hover { text-decoration: underline; }
+          body { font-family: 'メイリオ', 'Hiragino Sans', sans-serif; line-height: 1.8; color: #333; max-width: 800px; margin: 0 auto; }
+          h1 { color: #2c3e50; border-bottom: 3px solid #4CAF50; padding-bottom: 10px; }
+          h2 { color: #34495e; margin-top: 40px; border-bottom: 2px solid #4CAF50; padding-bottom: 5px; }
+          
+          /* 目次スタイル */
+          .toc { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 20px 0; }
+          .toc h3 { color: #495057; margin-top: 0; margin-bottom: 20px; }
+          .toc-item { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e9ecef; }
+          .toc-item:last-child { border-bottom: none; }
+          .toc-title { font-size: 16px; font-weight: bold; color: #2c3e50; text-decoration: none; display: block; margin-bottom: 5px; }
+          .toc-title:hover { color: #4CAF50; text-decoration: underline; }
+          .toc-date { color: #6c757d; font-size: 14px; margin-bottom: 5px; }
+          .toc-excerpt { color: #495057; font-size: 14px; line-height: 1.5; margin-bottom: 8px; }
+          .toc-link { color: #3498db; text-decoration: none; font-size: 14px; }
+          .toc-link:hover { text-decoration: underline; }
+          
+          /* 記事本文スタイル */
+          .article { margin: 40px 0; padding: 25px; background-color: #ffffff; border-left: 4px solid #4CAF50; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+          .article-title { font-size: 20px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+          .article-date { color: #7f8c8d; font-size: 14px; margin-bottom: 15px; }
+          .article-content { color: #495057; line-height: 1.8; }
+          .article-link { margin-top: 15px; padding-top: 15px; border-top: 1px solid #e9ecef; }
+          .article-link a { color: #3498db; text-decoration: none; font-weight: 500; }
+          .article-link a:hover { text-decoration: underline; }
+          
+          hr { border: none; border-top: 1px solid #dee2e6; margin: 40px 0; }
         </style>
       </head>
       <body>
-        <h2>橘明さんのブログが更新されました！</h2>
+        <h1>🔔 橘玲さんのブログが更新されました！</h1>
+        
+        <!-- 目次 -->
+        <div class="toc">
+          <h3>📋 新着記事一覧</h3>
     """
     
-    # テキスト版も作成（HTMLをサポートしないメーラー用）
-    text_body = "橘明さんのブログが更新されました！\n\n"
-    
+    # 目次を作成
     for i, article in enumerate(new_articles, 1):
-        # HTML版
+        article_id = f"article-{i}"
         html_body += f"""
-        <div class="article">
-          <div class="title">{article['title']}</div>
+          <div class="toc-item">
+            <a href="#{article_id}" class="toc-title">{article['title']}</a>
         """
         
         if article.get('date'):
-            html_body += f'<div class="date">{article["date"]}</div>'
+            html_body += f'<div class="toc-date">📅 {article["date"]}</div>'
         
         if article.get('content'):
-            html_body += f'<div class="content">{article["content"]}</div>'
+            excerpt = article['content'][:150] + "..." if len(article['content']) > 150 else article['content']
+            html_body += f'<div class="toc-excerpt">{excerpt}</div>'
         
         if article.get('link'):
-            html_body += f'<div class="link"><a href="{article["link"]}">→ 記事を読む</a></div>'
+            html_body += f'<a href="{article["link"]}" class="toc-link">→ 記事を読む</a>'
         
         html_body += "</div>"
+    
+    html_body += """
+        </div>
         
-        # テキスト版
-        text_body += f"【{i}】 {article['title']}\n"
+        <hr>
+        
+        <h2>📝 記事詳細</h2>
+    """
+    
+    # 各記事の本文
+    for i, article in enumerate(new_articles, 1):
+        article_id = f"article-{i}"
+        html_body += f"""
+        <div class="article" id="{article_id}">
+          <div class="article-title">{article['title']}</div>
+        """
+        
         if article.get('date'):
-            text_body += f"日付: {article['date']}\n"
+            html_body += f'<div class="article-date">📅 {article["date"]}</div>'
+        
         if article.get('content'):
-            text_body += f"{article['content'][:100]}...\n"
+            # 本文は最大500文字まで表示
+            full_content = article['content'][:500] + "..." if len(article['content']) > 500 else article['content']
+            html_body += f'<div class="article-content">{full_content}</div>'
+        
         if article.get('link'):
-            text_body += f"URL: {article['link']}\n"
-        text_body += "\n" + "-"*50 + "\n\n"
+            html_body += f'''
+            <div class="article-link">
+              <a href="{article["link"]}">📖 記事全文を読む →</a>
+            </div>
+            '''
+        
+        html_body += "</div>"
     
     html_body += f"""
         <hr>
-        <p>ブログURL: <a href="{BLOG_URL}">{BLOG_URL}</a></p>
+        <p style="text-align: center; color: #6c757d; font-size: 14px;">
+          ブログURL: <a href="{BLOG_URL}" style="color: #3498db; text-decoration: none;">{BLOG_URL}</a><br>
+          このメールは自動送信されています
+        </p>
       </body>
     </html>
     """
     
-    text_body += f"\nブログURL: {BLOG_URL}"
+    # テキスト版も作成（HTMLをサポートしないメーラー用）
+    text_body = "橘明さんのブログが更新されました！\n\n"
+    text_body += "="*50 + "\n\n"
+    
+    for i, article in enumerate(new_articles, 1):
+        text_body += f"【{i}】 {article['title']}\n"
+        if article.get('date'):
+            text_body += f"日付: {article['date']}\n"
+        if article.get('content'):
+            text_body += f"{article['content'][:200]}...\n"
+        if article.get('link'):
+            text_body += f"URL: {article['link']}\n"
+        text_body += "\n" + "-"*50 + "\n\n"
+    
+    text_body += f"ブログURL: {BLOG_URL}"
     
     # メール設定
     msg = MIMEMultipart('alternative')
