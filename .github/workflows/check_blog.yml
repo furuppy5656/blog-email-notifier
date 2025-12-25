@@ -2,7 +2,7 @@ name: ブログ更新チェック
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '0 0 * * *'  # 毎日午前9時（日本時間）
   workflow_dispatch:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
     - name: コードをチェックアウト
       uses: actions/checkout@v3
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ secrets.GH_PAT }}
     
     - name: Pythonセットアップ
       uses: actions/setup-python@v4
